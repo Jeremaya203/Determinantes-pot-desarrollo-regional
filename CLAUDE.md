@@ -1,258 +1,242 @@
-# CLAUDE.md — Determinantes de Superior Jerarquía (POT Colombia)
+﻿# Documentación completa — App interactiva Determinantes POT
 
-## Contexto del proyecto
+## Resumen del proyecto
 
-Página web educativa e interactiva sobre las **determinantes de superior jerarquía** en el ordenamiento territorial colombiano (Ley 388 de 1997, Art. 10). Incluye una presentación por secciones y un caso práctico final donde el usuario responde, ingresa su nombre/correo, y el resultado se guarda en Firebase Firestore.
-
-El desarrollador principal maneja Python como lenguaje principal y está aprendiendo JavaScript. Priorizar explicaciones claras cuando se hagan cambios.
+Aplicación web interactiva para una clase universitaria sobre determinantes del POT (Plan de Ordenamiento Territorial) en Colombia. Los estudiantes debaten 6 casos reales colombianos con sistema de votación en tiempo real. El docente controla la sesión desde un dashboard.
 
 ---
 
-## Stack
-
-| Capa | Tecnología |
-|------|-----------|
-| Frontend | React 18 + Vite + Tailwind CSS |
-| Backend | Node.js + Express (ES Modules) |
-| Base de datos | Firebase Firestore (plan Spark gratuito) |
-| Deploy frontend | GitHub Pages (via gh-pages + GitHub Actions) |
-| Deploy backend | Railway o Render (gratuito) |
-
----
-
-## Estructura del proyecto
+## Arquitectura
 
 ```
-determinantes-pot/
-├── CLAUDE.md                          ← este archivo
-├── README.md
-├── .gitignore
-├── .github/
-│   └── workflows/
-│       └── deploy.yml                 ← CI/CD automático a GitHub Pages
-│
+Frontend (React + Vite)          Backend (Express + Node.js)         Base de datos
+GitHub Pages                  →  Render.com                      →   Firebase Firestore
+jeremaya203.github.io/...        onrender.com                        Google Cloud
+```
+
+### URLs de producción
+- **App estudiantes:** `https://jeremaya203.github.io/Determinantes-pot-desarrollo-regional/`
+- **Dashboard docente:** `https://jeremaya203.github.io/Determinantes-pot-desarrollo-regional/dashboard`
+- **Backend API:** `https://determinantes-pot-desarrollo-regional.onrender.com`
+- **Repositorio:** `https://github.com/Jeremaya203/Determinantes-pot-desarrollo-regional`
+
+---
+
+## Estructura de archivos
+
+```
+determinantes/
+├── .github/workflows/deploy.yml     # CI/CD → GitHub Pages
 ├── frontend/
-│   ├── package.json
-│   ├── vite.config.js                 ← base: '/determinantes-pot/' (nombre del repo)
-│   ├── tailwind.config.js
-│   ├── postcss.config.js
-│   ├── index.html
-│   ├── .env.example                   ← copiar a .env
-│   └── src/
-│       ├── main.jsx                   ← entrada React
-│       ├── App.jsx                    ← composición de secciones
-│       ├── index.css                  ← variables CSS + Tailwind
-│       ├── hooks/
-│       │   └── useScrollAnimation.js  ← IntersectionObserver para animaciones
-│       ├── services/
-│       │   └── api.js                 ← fetch al backend
-│       └── components/
-│           ├── Navbar.jsx
-│           ├── Hero.jsx
-│           ├── IntroSection.jsx       ← Sección 1: introducción y marco normativo
-│           ├── ClasificacionSection.jsx ← Sección 2: niveles 1, 2 y 3
-│           ├── PracticaSection.jsx    ← Sección 3: instrumentos y CAR
-│           ├── FinalidadSection.jsx   ← Sección 4: objetivos estratégicos
-│           ├── TensionSection.jsx     ← Sección 5: autonomía vs unidad + glosario
-│           ├── ActividadSection.jsx   ← Sección 6: caso práctico interactivo
-│           └── Footer.jsx
-│
-└── backend/
-    ├── package.json
-    ├── .env.example                   ← copiar a .env
-    ├── .gitignore
-    └── src/
-        ├── index.js                   ← servidor Express
-        ├── firebase.js                ← inicialización Firebase Admin SDK
-        └── routes/
-            └── resultados.js          ← POST /api/resultados, GET /api/resultados/stats
+│   ├── src/
+│   │   ├── App.jsx                  # Routing, estado nombre, IntersectionObserver
+│   │   ├── components/
+│   │   │   ├── PostuladosSection.jsx    # 6 casos colombianos + votación
+│   │   │   ├── RegistroModal.jsx        # Modal para capturar nombre
+│   │   │   └── ... (Hero, Navbar, etc.)
+│   │   ├── dashboard/
+│   │   │   ├── DashboardPage.jsx        # Página principal del dashboard
+│   │   │   ├── DashboardLogin.jsx
+│   │   │   ├── DashboardHeader.jsx
+│   │   │   ├── PostuladoPanel.jsx       # Panel de votos por postulado
+│   │   │   ├── CasoPracticoPanel.jsx
+│   │   │   ├── JustificacionesCarousel.jsx
+│   │   │   └── useDashboardData.js      # Hook polling cada 2s
+│   │   ├── hooks/
+│   │   │   └── useRegistro.js           # sesionId (constante exportada)
+│   │   └── services/api.js
+│   ├── vite.config.js               # base: '/Determinantes-pot-desarrollo-regional/'
+│   └── .env.example
+├── backend/
+│   ├── src/
+│   │   ├── index.js                 # Servidor Express
+│   │   ├── firebase.js              # Firebase Admin SDK
+│   │   └── routes/
+│   │       ├── postulados.js
+│   │       ├── resultados.js
+│   │       └── sesiones.js          # Incluye endpoint /global/dashboard
+│   └── .env.example
+├── render.yaml                      # Config deploy Render
+└── .gitignore                       # Excluye: .env, firebase-service-account.json
 ```
 
 ---
 
-## Setup inicial (hacer una sola vez)
+## Base de datos — Firestore
 
-### 1. Clonar e instalar dependencias
+### Colecciones
 
-```bash
-git clone https://github.com/TU_USUARIO/determinantes-pot.git
-cd determinantes-pot
-
-# Backend
-cd backend
-npm install
-
-# Frontend
-cd ../frontend
-npm install
+**`sesiones`**
+```json
+{ "sesion_id": "uuid", "creada_en": "timestamp", "estado": "esperando|..." }
 ```
 
-### 2. Configurar Firebase
-
-1. Ir a [console.firebase.google.com](https://console.firebase.google.com)
-2. Crear proyecto → nombre libre (ej: `determinantes-pot`)
-3. En el proyecto: **Firestore Database** → Crear base de datos → Modo producción → Ubicación `us-east1`
-4. **Configuración del proyecto** (ícono ⚙️) → **Cuentas de servicio** → **Generar nueva clave privada**
-5. Guardar el JSON descargado como `backend/firebase-service-account.json`
-6. ⚠️ Este archivo está en `.gitignore` — nunca subirlo a GitHub
-
-### 3. Configurar variables de entorno
-
-```bash
-# Backend
-cd backend
-cp .env.example .env
+**`postulados`**
+```json
+{
+  "sesion_id": "uuid", "nombre": "Juan", "caso_id": 1,
+  "voto": "acuerdo|desacuerdo", "justificacion": "texto",
+  "segunda_votacion": "acuerdo|desacuerdo", "justificacion_cambio": "texto"
+}
 ```
 
-Editar `backend/.env`:
-```
-PORT=3001
-FIREBASE_SERVICE_ACCOUNT_PATH=./firebase-service-account.json
-FIREBASE_PROJECT_ID=tu-project-id-de-firebase
-ALLOWED_ORIGINS=http://localhost:5173
-ADMIN_KEY=una-clave-secreta-cualquiera
-```
-
-```bash
-# Frontend
-cd frontend
-cp .env.example .env
-```
-
-Editar `frontend/.env`:
-```
-VITE_API_URL=http://localhost:3001
+**`resultados`**
+```json
+{
+  "sesion_id": "uuid", "nombre": "Juan",
+  "caso_practico": { "respuesta": "A|B|C|D", "justificacion": "texto" }
+}
 ```
 
 ---
 
-## Comandos de desarrollo
-
-```bash
-# Levantar backend (desde /backend)
-npm run dev        # nodemon, recarga automática
-
-# Levantar frontend (desde /frontend)
-npm run dev        # Vite, abre en http://localhost:5173
-
-# Build del frontend
-npm run build
-
-# Deploy manual a GitHub Pages (desde /frontend)
-npm run deploy
-```
-
----
-
-## API del backend
+## Backend — API REST
 
 | Método | Ruta | Descripción |
 |--------|------|-------------|
-| GET | `/health` | Verificar que el servidor está activo |
-| POST | `/api/resultados` | Guardar resultado del caso práctico |
-| GET | `/api/resultados` | Listar resultados (requiere header `x-admin-key`) |
-| GET | `/api/resultados/stats` | Estadísticas de aciertos por escenario |
+| GET | `/health` | Health check |
+| POST | `/api/sesiones` | Crear sesión |
+| GET | `/api/sesiones/:id` | Estado de sesión |
+| PATCH | `/api/sesiones/:id` | Actualizar estado |
+| GET | `/api/sesiones/:id/dashboard` | Datos completos dashboard |
+| GET | `/api/sesiones/global/dashboard` | Todos los datos (sin filtro) |
+| POST | `/api/postulados` | Registrar voto |
+| GET | `/api/postulados/:sesion_id` | Votos de sesión |
+| POST | `/api/resultados` | Registrar caso práctico |
 
-### Body del POST `/api/resultados`
-```json
-{
-  "nombre": "Ana García",
-  "correo": "ana@ejemplo.com",
-  "escenario": "escenario_1",
-  "respuesta": "opcion_b",
-  "justificacion": "Porque las rondas hídricas son determinantes de Nivel 1...",
-  "puntaje": 100
-}
+### Variables de entorno backend
+```env
+PORT=3001
+NODE_ENV=production
+ADMIN_KEY=Jeremaya203%%
+FIREBASE_PROJECT_ID=determinantes-pot
+FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
+ALLOWED_ORIGINS=https://jeremaya203.github.io
 ```
 
-### Respuesta
-```json
-{
-  "ok": true,
-  "id": "abc123",
-  "correcta": true,
-  "mensaje": "¡Excelente! Tu respuesta es correcta."
-}
+### CORS
+- Métodos: `GET, POST, PATCH`
+- Headers: `Content-Type, x-admin-key`
+- Orígenes: variable `ALLOWED_ORIGINS` separados por coma
+
+---
+
+## Frontend
+
+### Variables de entorno
+```env
+VITE_API_URL=https://determinantes-pot-desarrollo-regional.onrender.com
+VITE_DASHBOARD_PASSWORD=Jeremaya203%%
 ```
 
----
+### GitHub Secrets requeridos
+| Secret | Valor |
+|--------|-------|
+| `VITE_API_URL` | `https://determinantes-pot-desarrollo-regional.onrender.com` |
+| `VITE_DASHBOARD_PASSWORD` | `Jeremaya203%%` |
 
-## Deploy a producción
+### sesionId
+- Constante exportada desde `useRegistro.js` (NO es un hook)
+- Lee `?sesion=UUID` de la URL o genera uno nuevo con `crypto.randomUUID()`
+- El docente comparte `?sesion=UUID` para agrupar estudiantes
 
-### Frontend → GitHub Pages
-
-1. En `frontend/vite.config.js`, verificar que `base` coincide con el nombre del repo:
-   ```js
-   base: '/determinantes-pot/',
-   ```
-2. En GitHub → repo → **Settings → Pages → Source: Deploy from branch → gh-pages**
-3. En GitHub → repo → **Settings → Secrets → Actions**, agregar:
-   - `VITE_API_URL` = URL del backend en producción (ej: `https://mi-backend.up.railway.app`)
-4. Cada `git push` a `main` que toque `/frontend` dispara el workflow automáticamente.
-
-### Backend → Railway
-
-1. Ir a [railway.app](https://railway.app) → New Project → Deploy from GitHub repo
-2. Seleccionar el repo → en **Settings → Root Directory** poner `backend`
-3. En **Variables**, agregar todas las del `.env` de producción:
-   - `FIREBASE_SERVICE_ACCOUNT_JSON` = pegar el contenido completo del JSON (como string)
-   - `FIREBASE_PROJECT_ID`
-   - `ALLOWED_ORIGINS` = `https://TU_USUARIO.github.io`
-   - `ADMIN_KEY`
-4. Railway asigna automáticamente una URL pública.
+### ID especial `'global'` en dashboard
+- `GET /api/sesiones/global/dashboard` omite el filtro por sesión
+- Devuelve todos los documentos de la base de datos
+- Se activa automáticamente al hacer login
 
 ---
 
-## Colección Firestore: `resultados`
+## CI/CD — GitHub Actions
 
+**Trigger:** cualquier push a `main` + manual (`workflow_dispatch`)
+
+**Pasos:**
+1. Checkout → Setup Node 20 → `npm ci`
+2. `npm run build` con secrets como env vars
+3. Copia `index.html` → `404.html` (fix SPA routing en GitHub Pages)
+4. Deploy a rama `gh-pages`
+
+**Por qué el 404.html:** GitHub Pages no soporta SPA routing. Sin este archivo, entrar directamente a `/dashboard` devuelve 404.
+
+---
+
+## Deploy — Render.com (backend)
+
+- **Plan:** Free ($0/mes)
+- **rootDir:** `backend/`
+- **Build:** `npm install`
+- **Start:** `node src/index.js`
+- **Health check:** `/health`
+
+**Nota plan Free:** El servicio se duerme tras 15 min de inactividad. Primera petición tarda 30-50s. Abrir el dashboard antes de clase para despertarlo.
+
+---
+
+## Firebase
+
+- **Proyecto:** `determinantes-pot`
+- **SDK:** Firebase Admin SDK 12 (solo en backend)
+- **Credenciales:** `FIREBASE_SERVICE_ACCOUNT_JSON` en variables de entorno de Render
+- **Archivo local:** `backend/firebase-service-account.json` (en .gitignore, nunca al repo)
+
+**Seguridad:** Si la clave privada se expone: revocarla en Firebase Console → Proyecto → Cuentas de servicio.
+
+---
+
+## Bugs resueltos
+
+| Bug | Causa | Solución |
+|-----|-------|----------|
+| PostuladosSection encoding corrupto | UTF-8 doble-codificado como Win-1252 | Borrar y recrear el archivo |
+| "Failed to fetch" en dashboard | ALLOWED_ORIGINS solo tenía puerto 5173 | Agregar puertos 5174, 5175 |
+| Dashboard cargando infinito | `res.id` en vez de `res.sesion_id` | Corregir lectura del response |
+| CORS 422 en PATCH | methods faltaba PATCH | Agregar PATCH al CORS |
+| Dashboard muestra 0 votos | `data?.caso` / nombres de campos incorrectos | Normalizar: `caso_practico`, `correctas`, `por_opcion` |
+| 422 al cerrar segunda votación | `estado: 'activa'` inválido | `estado: 'esperando'` |
+| PostuladoPanel 0 votos | Desestructuración con nombres viejos (`segunda`/`argumentos`) | `cambios`/`justificaciones` |
+| React crash al cargar datos | JustificacionesCarousel recibía objetos en vez de strings | Mapear a array de strings |
+| Dashboard no muestra nada global | `modoGlobal=false` + `sesionId=''` → hook no disparaba | `handleLogin` activa `modoGlobal=true`; backend acepta ID `'global'` |
+| 404 en rutas React en GitHub Pages | GitHub Pages no maneja SPA routing | Copiar `index.html` como `404.html` |
+| Render: `npm not found` | `rootDir` no configurado | `render.yaml` con `rootDir: backend` |
+
+---
+
+## Uso en clase
+
+### Antes de clase
+1. Abrir `https://determinantes-pot-desarrollo-regional.onrender.com/health` (despertar backend)
+2. Abrir dashboard: `https://jeremaya203.github.io/Determinantes-pot-desarrollo-regional/dashboard`
+3. Ingresar contraseña: `Jeremaya203%%`
+4. Crear nueva sesión (`+ NUEVA SESIÓN`) y copiar URL para estudiantes
+
+### Durante clase
+- Estudiantes abren la URL compartida → ingresan nombre → completan 6 debates → caso práctico
+- Dashboard muestra votos en tiempo real (polling cada 2s)
+- Abrir segunda votación por caso: `ABRIR SEGUNDA VOTACIÓN →`
+- Revelar resultados del caso práctico: `REVELAR RESULTADOS →`
+
+### Después de clase
+- Datos guardados en Firestore indefinidamente
+- Para limpiar: script temporal con Firebase Admin SDK (borrar colecciones `postulados`, `resultados`, `sesiones`)
+
+---
+
+## Desarrollo local
+
+### Backend
+```bash
+cd backend
+npm install
+cp .env.example .env   # Editar con credenciales reales
+# Colocar firebase-service-account.json en backend/
+npm run dev            # → http://localhost:3001
 ```
-resultados/
-└── {auto-id}/
-    ├── nombre: string
-    ├── correo: string
-    ├── escenario: string       ("escenario_1")
-    ├── respuesta: string       ("opcion_a" | "opcion_b" | "opcion_c")
-    ├── correcta: boolean
-    ├── justificacion: string
-    ├── puntaje: number         (0–100)
-    ├── timestamp: string       (ISO 8601)
-    └── ip: string
+
+### Frontend
+```bash
+cd frontend
+npm install
+cp .env.example .env   # VITE_API_URL=http://localhost:3001
+npm run dev            # → http://localhost:5173
 ```
-
----
-
-## Contenido del documento fuente
-
-El documento de Fabián López cubre exactamente estos 6 temas (uno por sección):
-
-1. **Introducción y Marco Normativo** — definición, Ley 388/97, Ley 2294/23, justificación de la jerarquía
-2. **Clasificación y Tipos** — Nivel 1 (ambiental/riesgo), Nivel 2 (alimentario/rural), Nivel 3 (infraestructura/patrimonio)
-3. **Cómo Funcionan en la Práctica** — POT/PBOT/EOT, rol de las CAR, 30 días de concertación, consecuencias de contradicción
-4. **Finalidad y Objetivos** — tabla: sostenibilidad, gestión del riesgo, seguridad alimentaria, preservación cultural, articulación estatal
-5. **Tensión con la Autonomía Municipal** — Art. 287 CP, C-138/2020, rigor subsidiario, gradación normativa, retos actuales
-6. **Glosario** — determinante, concertación ambiental, suelo de protección, plusvalía
-
-No agregar contenido externo al documento. Todo lo que se muestra en la web debe venir de allí.
-
----
-
-## Tareas pendientes
-
-- [ ] Verificar que `vite.config.js` tenga el nombre correcto del repo en `base`
-- [ ] Crear proyecto Firebase y descargar credenciales
-- [ ] Completar `backend/.env` con datos reales
-- [ ] Probar flujo completo local: frontend → backend → Firestore
-- [ ] Subir repo a GitHub y activar GitHub Pages
-- [ ] Deploy del backend en Railway
-- [ ] Agregar secret `VITE_API_URL` en GitHub para el workflow
-- [ ] Verificar que el caso práctico guarda correctamente en Firestore
-
----
-
-## Notas para Claude Code
-
-- El desarrollador viene de Python: cuando expliques patrones JS, haz analogías con Python si aplica.
-- No agregar librerías nuevas sin justificación. El proyecto ya tiene todo lo necesario.
-- El estilo visual está definido por variables CSS en `src/index.css`. No cambiar la paleta sin confirmación.
-- La respuesta correcta del caso práctico es `opcion_b`. Está hardcodeada en `backend/src/routes/resultados.js` en el objeto `respuestasCorrectas`.
-- Si se agregan más escenarios, hacerlo en `ActividadSection.jsx` (frontend) y en `respuestasCorrectas` (backend).
