@@ -33,6 +33,9 @@ jobs:
           VITE_API_URL: ${{ secrets.VITE_API_URL }}
           VITE_DASHBOARD_PASSWORD: ${{ secrets.VITE_DASHBOARD_PASSWORD }}
 
+      - name: Copy index.html as 404.html for SPA routing
+        run: cp frontend/dist/index.html frontend/dist/404.html
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
